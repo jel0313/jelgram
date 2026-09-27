@@ -32,3 +32,4 @@ supabase/.branches/
 
 # 個人用メモ(秘密情報を含む可能性があるためコミットしない)
 .vscode/supabase.md
+docs/設定/
