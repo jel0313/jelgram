@@ -1,0 +1,31 @@
+# 環境変数(秘密情報を含むためコミットしない。ひな形の .env.example のみコミットする)
+.env
+.env.*
+!.env.example
+
+# OS・エディタ
+.DS_Store
+.idea/
+*.swp
+
+# Node.js / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+.vercel/
+npm-debug.log*
+pnpm-debug.log*
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Supabase CLI のローカル一時ファイル
+supabase/.temp/
+supabase/.branches/
