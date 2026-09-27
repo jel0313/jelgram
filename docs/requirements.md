@@ -16,7 +16,7 @@ Instagram/X(旧Twitter)のようなSNS上に、Grokのような「常駐AIチャ
 ### 3.1 タイムライン機能
 - 投稿一覧の表示(ユーザー名、本文、画像、いいね数、投稿日時)
 - 投稿の新規作成(テキスト+画像)
-- 画像アップロード(S3へ直接アップロード)
+- 画像アップロード(Supabase Storageへ直接アップロード)
 
 ### 3.2 AIチャット機能
 - 画面常駐のチャットUI
@@ -26,46 +26,49 @@ Instagram/X(旧Twitter)のようなSNS上に、Grokのような「常駐AIチャ
 - AIキャラクター性(辛口/フレンドリー等)をシステムプロンプトで制御
 
 ### 3.3 画像アップロード機能
-- S3への直接アップロード(Presigned URL方式、パターンB)
+- Supabase Storageへの直接アップロード(署名付きURL方式)
 - フロントエンドでのバリデーション(拡張子・サイズ)
-- 将来的な拡張:S3 Presigned URL発行時のConditions指定(content-length-range、Content-Type制限)によるバックエンド側ガード
+- 将来的な拡張:署名付きURL発行時のファイルサイズ/Content-Type制限によるバックエンド側ガード
 
 ## 4. 非機能要件
 
 - 個人開発・検証レベルのスケールを想定(大規模アクセスは非対象)
-- 無料枠内での運用を最優先(AWS無料枠・GitHub無料枠)
+- **期限なく無料で運用できること**を最優先(AWSのような12ヶ月限定の無料枠は避ける)
 - レート制限:AI呼び出し(Gemini API無料枠)の急激な消費を防ぐため、簡易的なレート制限(IPベース等)を検討
+- バックエンド(Render無料プラン)は一定時間アクセスがないとスリープする点を許容(個人開発・検証用途のため実用上は問題にしにくい想定)
 
 ## 5. 技術スタック
 
-| レイヤー | 技術 |
-|---|---|
-| フロントエンド | Next.js / Tailwind CSS / shadcn/ui |
-| バックエンド | Python / FastAPI |
-| データベース | PostgreSQL(AWS RDS) |
-| 画像ストレージ | AWS S3(Presigned URL方式) |
-| AI | Google Gemini API(無料枠) |
-| インフラ | AWS(EC2, RDS, S3) |
-| デプロイ/CI | GitHub Actions(無料枠) |
+| レイヤー | 技術 | ホスティング | 無料枠の性質 |
+|---|---|---|---|
+| フロントエンド | Next.js / Tailwind CSS / shadcn/ui | Vercel | 個人利用なら期限なく無料 |
+| バックエンド | Python / FastAPI | Render(無料プラン) | 期限なく無料(ただし無操作でスリープ) |
+| データベース | PostgreSQL | Supabase | 期限なく無料(容量等に制限あり) |
+| 画像ストレージ | Supabase Storage | Supabase(DBと同一サービス) | 期限なく無料(容量制限あり) |
+| AI | Google Gemini API | — | 無料枠あり(リクエスト数/トークン数に上限) |
+| デプロイ/CI | GitHub連携による自動デプロイ | Vercel / Render | 無料 |
+
+**方針転換の理由**:当初はAWS(EC2/RDS/S3)で統一する案だったが、AWS無料枠は「アカウント作成から12ヶ月間」限定で、以降は課金が発生する。「とにかくずっと無料で使いたい」という要望に合わせ、期限のない無料枠を持つVercel・Render・Supabaseの組み合わせに変更。
 
 ## 6. システム構成
 
 ```
-[GitHub] --push--> [GitHub Actions] --deploy--> [EC2 (t2/t3.micro)]
-                                                    ├─ Next.js (PM2, port 3000)
-                                                    ├─ FastAPI (Uvicorn, port 8000)
-                                                    └─ Nginx (リバースプロキシ, port 80/443)
-                                                          ↓
-                                                   [RDS PostgreSQL (db.t3.micro)]
+[GitHub] --push--> 自動デプロイ
+     ├─→ [Vercel] Next.js(フロントエンド)
+     └─→ [Render] FastAPI(バックエンドAPI, Uvicorn)
+                        ↓
+                 [Supabase PostgreSQL]
+                        ↓
+                 [Supabase Storage] ← 画像ファイル
 
-[ブラウザ] --画像を直接アップロード--> [S3]
+[ブラウザ] --画像を直接アップロード--> [Supabase Storage]
    ↑
-   └─ Presigned URLはFastAPI経由で取得
+   └─ 署名付きURLはFastAPI経由で取得
 ```
 
-- EC2 1台にNext.js・FastAPI・Nginxを同居(無料枠のインスタンス時間を節約)
-- Nginxで `/api/*` をFastAPIへ、それ以外をNext.jsへ振り分け
-- Next.jsのビルドはGitHub Actions上で実施し、成果物のみEC2へ転送(EC2のメモリ不足対策)
+- Vercel、Renderともに GitHub と連携し、push するだけで自動デプロイ
+- Next.js(Vercel)から FastAPI(Render)へAPIリクエスト、FastAPIからSupabase(DB/Storage)へアクセスする構成
+- サーバー管理(Nginx設定、SSH配線など)が不要になり、AWS EC2構成より運用がシンプル
 
 ## 7. データベース設計(案)
 
@@ -75,7 +78,7 @@ Instagram/X(旧Twitter)のようなSNS上に、Grokのような「常駐AIチャ
 | id | serial (PK) | 投稿ID |
 | user_name | varchar | 投稿者名 |
 | content | text | 本文 |
-| image_url | varchar (nullable) | S3画像URL |
+| image_url | varchar (nullable) | Supabase Storage画像URL |
 | likes | integer | いいね数 |
 | created_at | timestamp | 投稿日時 |
 
@@ -95,15 +98,16 @@ Instagram/X(旧Twitter)のようなSNS上に、Grokのような「常駐AIチャ
 |---|---|---|
 | GET | /posts | 投稿一覧取得 |
 | POST | /posts | 投稿新規作成 |
-| POST | /uploads/presign | S3 Presigned URL発行 |
+| POST | /uploads/presign | Supabase Storage署名付きURL発行 |
 | POST | /chat | AIチャット応答取得(message, context, history) |
 | GET | /chat/history | セッションの会話履歴取得 |
 
-## 9. AWS無料枠に関する注意事項
+## 9. 無料枠に関する注意事項
 
-- EC2 / RDSの無料枠は**アカウント作成から12ヶ月間**が対象。以降は課金が発生するため、継続運用する場合は移行・縮小の計画が必要
-- S3無料枠:5GBストレージ、PUT/POST/LIST 2,000件/月、GET 20,000件/月(12ヶ月間)
-- Gemini API無料枠にもリクエスト数/トークン数の上限があるため、想定外のアクセス急増時は制限に達する可能性あり
+- **Vercel**:個人(Hobby)利用なら期限なく無料。商用利用や大規模アクセスの場合は別途確認が必要
+- **Render**:無料プランは期限なく利用可能だが、一定時間アクセスがないとインスタンスがスリープし、次回アクセス時に起動待ち(数十秒程度)が発生する
+- **Supabase**:無料プランは期限なく利用可能。DB容量・Storage容量に上限あり(目安:DB 500MB、Storage 1GB程度、プラン内容は変動する可能性があるため利用時に要確認)。一定期間アクセスがないプロジェクトは一時停止される場合がある点にも注意
+- **Gemini API**:無料枠にもリクエスト数/トークン数の上限があるため、想定外のアクセス急増時は制限に達する可能性あり
 
 ## 10. 未確定・要検討事項
 
@@ -111,5 +115,5 @@ Instagram/X(旧Twitter)のようなSNS上に、Grokのような「常駐AIチャ
 - [ ] ユーザー認証の要否(現状は想定なし、ゲスト利用前提)
 - [ ] AIキャラクター(口調・性格)のシステムプロンプト詳細
 - [ ] レート制限の具体的な実装方式
-- [ ] 独自ドメイン・SSL証明書(Let's Encrypt)の設定要否
-- [ ] 本番運用時のAWS無料枠終了後の移行方針
+- [ ] 独自ドメイン・SSL証明書の設定要否(Vercel/Renderは標準でHTTPS対応)
+- [ ] Render無料プランのスリープ挙動が体験上許容できるかの検証
