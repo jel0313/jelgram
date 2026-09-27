@@ -90,9 +90,12 @@ eval "$(fnm env --use-on-cd --version-file-strategy=recursive --shell zsh)"
 ### 2.2 リポジトリを取得する
 
 ```
+mkdir -p ~/dev && cd ~/dev
 git clone https://github.com/jel0313/jelgram.git
 cd jelgram
 ```
+
+> ⚠️ **デスクトップ・書類フォルダには置かない**:この2つは iCloud と同期されていて、iCloud がファイルの中身をクラウドに移すことがある。`.venv` や `node_modules` の中身が消えると、Python や Node がファイルの読み込み待ちで固まる。`~/dev` のような iCloud の外に置く。
 
 ### 2.3 環境変数ファイルを作る
 
@@ -311,6 +314,7 @@ git push
 | 起動時に `String should have at least 1 character`       | `.env` の必須項目の値が空                                                                |
 | `Address already in use`                                 | 別のターミナルでサーバーが動いたまま。そちらを `Ctrl + C` で止める                       |
 | DB につながらない                                        | 開発用 Supabase が一時停止していないか確認する([3.3](#33-始める前のチェック))         |
+| 起動やテストがエラーも出ずに固まる                      | プロジェクトが iCloud 同期のフォルダ(デスクトップ・書類)にある。`~/dev` に移す([2.2](#22-リポジトリを取得する)) |
 | `node -v` が 24 系にならない                             | `~/.zshrc` の fnm の設定が末尾にあるか確認し、ターミナルを開き直す                       |
 | `VIRTUAL_ENV=... does not match` という警告              | 別の仮想環境が有効なだけで、動作に問題はない。気になる場合は `deactivate`                 |
 | VS Code で import に赤い波線                             | Python のインタープリターを `apps/api/.venv` に切り替える                                |
