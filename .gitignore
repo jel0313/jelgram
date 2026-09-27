@@ -29,3 +29,6 @@ __pycache__/
 # Supabase CLI のローカル一時ファイル
 supabase/.temp/
 supabase/.branches/
+
+# 個人用メモ(秘密情報を含む可能性があるためコミットしない)
+.vscode/supabase.md
