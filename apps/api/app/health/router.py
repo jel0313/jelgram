@@ -1,15 +1,10 @@
 """ヘルスチェック API。"""
 
-from typing import Literal
-
 from fastapi import APIRouter
-from pydantic import BaseModel
+
+from app.health.schemas import HealthResponse
 
 router = APIRouter(tags=["health"])
-
-
-class HealthResponse(BaseModel):
-    status: Literal["ok"]
 
 
 @router.get("/health", response_model=HealthResponse)

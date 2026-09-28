@@ -12,7 +12,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi.testclient import TestClient
 
-from app.auth import get_jwks_client
+from app.auth.dependencies import get_jwks_client
 from app.main import app
 
 

@@ -1,8 +1,9 @@
-"""ログイン中のユーザー情報 API(認証の確認用)。"""
+"""認証の API(ログイン中のユーザー情報。認証の確認用)。"""
 
 from fastapi import APIRouter
 
-from app.auth import CurrentUser, CurrentUserDep
+from app.auth.dependencies import CurrentUserDep
+from app.auth.schemas import CurrentUser
 
 router = APIRouter(tags=["auth"])
 

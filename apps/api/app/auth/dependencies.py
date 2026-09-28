@@ -1,33 +1,22 @@
-"""認証(Supabase が発行した JWT の検証)。
+"""認証の依存関数(Supabase が発行した JWT の検証)。
 
 各エンドポイントは引数に `user: CurrentUserDep` と書くだけで、認証が必須になる。
 """
 
 from functools import lru_cache
 from typing import Annotated
-from uuid import UUID
 
 import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
-from app.config import Settings, get_settings
-
-# 許可する署名方式。トークン側の alg は信じない
-JWT_ALGORITHMS = ["ES256"]
-# ログイン済みユーザー向けのトークンだけを通す
-JWT_AUDIENCE = "authenticated"
+from app.auth.constants import JWT_ALGORITHMS, JWT_AUDIENCE
+from app.auth.schemas import CurrentUser
+from app.core.config import SettingsDep, get_settings
 
 # Authorization: Bearer <トークン> を取り出す。/docs の Authorize ボタンもこれで表示される
 bearer_scheme = HTTPBearer(auto_error=False)
-
-
-class CurrentUser(BaseModel):
-    """ログイン中のユーザー。"""
-
-    id: UUID
-    email: str | None = None
 
 
 def _unauthorized(detail: str) -> HTTPException:
@@ -47,7 +36,7 @@ def get_jwks_client() -> jwt.PyJWKClient:
 def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
     jwks_client: Annotated[jwt.PyJWKClient, Depends(get_jwks_client)],
-    settings: Annotated[Settings, Depends(get_settings)],
+    settings: SettingsDep,
 ) -> CurrentUser:
     """JWT を検証し、ログイン中のユーザーを返す。
 

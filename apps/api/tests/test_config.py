@@ -6,7 +6,7 @@ _env_file=None を渡して、ローカルの .env を読まずに Settings を�
 import pytest
 from pydantic import ValidationError
 
-from app.config import Settings
+from app.core.config import Settings
 
 REQUIRED = {
     "supabase_url": "https://test.supabase.co",
