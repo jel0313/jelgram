@@ -39,6 +39,11 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.cors_allow_origins.split(",") if origin.strip()]
 
 
+    @property
+    def sqlalchemy_database_url(self) -> str:
+        """database_url を SQLAlchemy(psycopg 3)用の形に変換する。"""
+        return self.database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+
 @lru_cache
 def get_settings() -> Settings:
     """設定を返す。初回に読み込んだものを使い回す。"""
