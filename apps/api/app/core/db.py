@@ -1,4 +1,4 @@
-"""DB 接続(エンジン・セッション)と、ORM モデルの親クラス。"""
+"""DB 接続(エンジン・セッション)。"""
 
 from collections.abc import Iterator
 from functools import lru_cache
@@ -7,17 +7,9 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import DeclarativeBase, Session
+from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-
-
-class Base(DeclarativeBase):
-    """すべての ORM モデルの親クラス。
-
-    テーブルの作成・変更はマイグレーション(supabase/migrations)で行う。
-    Base.metadata.create_all() は使わない。
-    """
 
 
 @lru_cache
