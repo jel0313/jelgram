@@ -8,20 +8,24 @@ import os
 
 os.environ["SUPABASE_URL"] = "https://test.supabase.co"
 os.environ["SUPABASE_SECRET_KEY"] = "test-secret-key"
-os.environ["DATABASE_URL"] = "postgresql://test:test@localhost:5432/test"
+# DATABASE_URL は設定しない(.env の開発用 DB を使い、テストごとにロールバックする)
 os.environ["GEMINI_API_KEY"] = "test-gemini-key"
 os.environ["CORS_ALLOW_ORIGINS"] = "http://localhost:3000"
 
-from collections.abc import Callable  # noqa: E402
+from collections.abc import Callable, Iterator  # noqa: E402
+from contextlib import contextmanager  # noqa: E402
 from datetime import UTC, datetime, timedelta  # noqa: E402
 from typing import Any  # noqa: E402
-from uuid import uuid4  # noqa: E402
+from uuid import UUID, uuid4  # noqa: E402
 
 import jwt  # noqa: E402
 import pytest  # noqa: E402
 from cryptography.hazmat.primitives.asymmetric import ec  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import text  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
 
+from app.core.db import get_db, get_engine  # noqa: E402
 from app.main import app  # noqa: E402
 
 TEST_ISSUER = "https://test.supabase.co/auth/v1"
@@ -66,3 +70,54 @@ def make_token(private_key: ec.EllipticCurvePrivateKey) -> Callable[..., str]:
         )
 
     return _make_token
+
+
+@contextmanager
+def rollback_session() -> Iterator[Session]:
+    """開発用 DB のトランザクションの中で動くセッション。抜けるときに全部ロールバックする。
+
+    中で session.commit() を呼んでも、セーブポイントの確定にとどまる(外側は確定しない)。
+    """
+    connection = get_engine().connect()
+    transaction = connection.begin()
+    session = Session(bind=connection, join_transaction_mode="create_savepoint")
+    try:
+        yield session
+    finally:
+        session.close()
+        transaction.rollback()
+        connection.close()
+
+
+@pytest.fixture
+def db_session() -> Iterator[Session]:
+    """テストが終わったら全部ロールバックする DB セッション。"""
+    with rollback_session() as session:
+        yield session
+
+
+@pytest.fixture
+def db_client(db_session: Session) -> Iterator[TestClient]:
+    """API が db_session を使うように差し替えた TestClient。"""
+    app.dependency_overrides[get_db] = lambda: db_session
+    yield TestClient(app)
+    app.dependency_overrides.clear()
+
+
+def insert_test_user(session: Session, display_name: str = "テストユーザー") -> UUID:
+    """auth.users にテスト用ユーザーを入れる(トリガーで profiles も作られる)。"""
+    user_id = uuid4()
+    session.execute(
+        text(
+            "insert into auth.users (id, email, raw_user_meta_data) "
+            "values (:id, :email, jsonb_build_object('full_name', cast(:name as text)))"
+        ),
+        {"id": user_id, "email": f"{user_id}@example.com", "name": display_name},
+    )
+    return user_id
+
+
+@pytest.fixture
+def create_user(db_session: Session) -> Callable[..., UUID]:
+    """テスト用ユーザーを作る関数を返す(db_session と一緒にロールバックされる)。"""
+    return lambda display_name="テストユーザー": insert_test_user(db_session, display_name)

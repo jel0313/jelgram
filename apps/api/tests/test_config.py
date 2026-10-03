@@ -43,3 +43,12 @@ def test_rate_limit_must_be_positive() -> None:
     """T-07: レート制限に 0 以下を指定するとエラーになる。"""
     with pytest.raises(ValidationError):
         Settings(_env_file=None, **REQUIRED, rate_limit_per_user_per_minute=0)
+
+
+def test_sqlalchemy_database_url_uses_psycopg() -> None:
+    """DATABASE_URL を SQLAlchemy(psycopg 3)用に変換する(先頭だけ置き換える)。"""
+    settings = Settings(
+        _env_file=None, **{**REQUIRED, "database_url": "postgresql://u:p@h:5432/postgresql://"}
+    )
+
+    assert settings.sqlalchemy_database_url == "postgresql+psycopg://u:p@h:5432/postgresql://"

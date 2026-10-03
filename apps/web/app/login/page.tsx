@@ -24,8 +24,8 @@ export default function LoginPage() {
   const handleSignIn = async () => {
     setSigningIn(true);
     try {
+      // Google のログイン画面へ移る(終わるとタイムラインに戻ってくる)
       await signIn();
-      router.replace("/");
     } catch {
       toast.error("ログインに失敗しました。もう一度お試しください");
       setSigningIn(false);
