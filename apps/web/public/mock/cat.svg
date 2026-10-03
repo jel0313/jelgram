@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500">
+  <rect width="800" height="500" fill="#e8eef7"/>
+  <rect x="140" y="300" width="520" height="140" rx="16" fill="#3b4252"/>
+  <g fill="#5e6779">
+    <rect x="170" y="325" width="40" height="30" rx="5"/><rect x="220" y="325" width="40" height="30" rx="5"/><rect x="270" y="325" width="40" height="30" rx="5"/><rect x="320" y="325" width="40" height="30" rx="5"/><rect x="370" y="325" width="40" height="30" rx="5"/><rect x="420" y="325" width="40" height="30" rx="5"/><rect x="470" y="325" width="40" height="30" rx="5"/><rect x="520" y="325" width="40" height="30" rx="5"/><rect x="570" y="325" width="60" height="30" rx="5"/>
+    <rect x="250" y="390" width="300" height="30" rx="5"/>
+  </g>
+  <ellipse cx="400" cy="310" rx="170" ry="70" fill="#f0a64a"/>
+  <circle cx="270" cy="270" r="60" fill="#f0a64a"/>
+  <path d="M225 230 L235 180 L265 220 Z M285 220 L310 180 L318 232 Z" fill="#f0a64a"/>
+  <path d="M245 270 q12 10 24 0 M285 270 q12 10 24 0" stroke="#5a3a1a" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <path d="M560 300 q90 -10 70 -80" stroke="#f0a64a" stroke-width="26" fill="none" stroke-linecap="round"/>
+  <text x="600" y="120" font-size="48" fill="#8a94a6" font-family="sans-serif">z z z</text>
+</svg>

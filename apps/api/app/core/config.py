@@ -40,11 +40,6 @@ class Settings(BaseSettings):
         """cors_allow_origins をリストに変換する(前後の空白・空の要素は除く)。"""
         return [origin.strip() for origin in self.cors_allow_origins.split(",") if origin.strip()]
 
-    @property
-    def sqlalchemy_database_url(self) -> str:
-        """database_url を SQLAlchemy(psycopg 3)用の形に変換する。"""
-        return self.database_url.replace("postgresql://", "postgresql+psycopg://", 1)
-
 
 @lru_cache
 def get_settings() -> Settings:
