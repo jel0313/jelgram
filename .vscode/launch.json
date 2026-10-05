@@ -1,0 +1,33 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "API をデバッグ実行",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["app.main:app", "--port", "8000"],
+      "cwd": "${workspaceFolder}/apps/api",
+      "python": "${workspaceFolder}/apps/api/.venv/bin/python",
+      "justMyCode": true
+    },
+    {
+      "name": "テストをデバッグ実行",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["-k", "${input:testName}"],
+      "cwd": "${workspaceFolder}/apps/api",
+      "python": "${workspaceFolder}/apps/api/.venv/bin/python",
+      "justMyCode": true
+    }
+  ],
+  "inputs": [
+    {
+      "id": "testName",
+      "type": "promptString",
+      "description": "実行するテストの名前(一部でもよい)",
+      "default": "test_valid_token_returns_user"
+    }
+  ]
+}
