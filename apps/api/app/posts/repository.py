@@ -1,8 +1,7 @@
-
 from uuid import UUID
 
-from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 
 def get_posts(session: Session, user_id: UUID, limit: int):
@@ -27,9 +26,6 @@ def get_posts(session: Session, user_id: UUID, limit: int):
           limit :limit
           """)
 
-    result = session.execute(
-        sql,
-        {"user_id": user_id, "limit": limit}
-    )
+    result = session.execute(sql, {"user_id": user_id, "limit": limit})
 
     return result.mappings().all()  # 列名で取り出せる行のリストにする
