@@ -113,7 +113,7 @@
 
 - **5.4 投稿一覧の表示**:画面 02 / API `GET /posts` / 置き換える:`getTimeline`
   - 完了の目安:新しい順に表示される。投稿者の名前・アイコン、いいね数、自分がいいね済みか(ハートの色)が正しい
-  - 進み具合:DB に確認用の投稿を入れて SQL を確認 ✅ → `schemas.py` ✅ → `repository.py` ✅ → `service.py` ⬜ → `router.py`・`main.py` ⬜ → テスト ⬜ → 画面接続 ⬜ → 打鍵 ⬜
+  - 進み具合:DB に確認用の投稿を入れて SQL を確認 ✅ → `schemas.py` ✅ → `repository.py` ✅ → `service.py` ✅ → `router.py`・`main.py` ⬜ → テスト ⬜ → 画面接続 ⬜ → 打鍵 ⬜
 - **5.6 投稿詳細の表示**:画面 03 / API `GET /posts/{id}` / 置き換える:`getPost`
   - 完了の目安:URL で投稿を開ける。ない投稿は「投稿が見つかりません」
 - **5.7 投稿する(文字だけ)**:画面 02 / API `POST /posts` / 置き換える:`createPost`
