@@ -5,15 +5,14 @@ from app.posts.schemas import PostResponse, Author
 # 関数:タイムラインを取得する
 #   受け取る:session、ログイン中のユーザーの id
 #   返す    :PostResponse のリスト
-
 def get_timeline(session, user_id):
-  #  1. repository に一覧を頼む
-  #      渡すもの:session、ユーザーの id、件数の定数(50)
-  #      → 行のリストが返る(0 件なら空のリスト)
 
+  # 1. repository.get_posts() を呼び出して、投稿の一覧を取得する
   posts = repository.get_posts(session, user_id, TIMELINE_LIMIT)
 
+  # 2. PostResponse のリストを入れる箱を作る
   result = []
+
       # 3. 行を 1 つずつ取り出して、繰り返す
       #  3-1. 行の author_ で始まる 3 列から Author を 1 つ作る
       #         author_id           → id
@@ -23,8 +22,6 @@ def get_timeline(session, user_id):
       #         id, content, image_url, created_at はそのまま
       #         author には 3-1 で作ったもの
       #         like_count, liked_by_me はそのまま
-      #  3-3. できた PostResponse を箱に追加する
-
   for post in posts:
     author = Author(
       id=post["author_id"],
@@ -42,6 +39,7 @@ def get_timeline(session, user_id):
       liked_by_me=post["liked_by_me"]
     )
 
+    #  3-3. できた PostResponse を箱に追加する
     result.append(post_response)
 
   # 4. 箱を返す
