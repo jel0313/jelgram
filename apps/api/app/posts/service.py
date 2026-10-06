@@ -1,12 +1,13 @@
 from uuid import UUID
 
-from app.core.db import Session
+from sqlalchemy.orm import Session
+
 from app.posts import repository
 from app.posts.constants import TIMELINE_LIMIT
 from app.posts.schemas import Author, PostResponse
 
 
-def get_timeline(session : Session, user_id : UUID) -> list[PostResponse]:
+def get_timeline(session: Session, user_id: UUID) -> list[PostResponse]:
     """タイムラインの投稿を新しい順に返す。"""
     # 1. repository.get_posts() を呼び出して、投稿の一覧を取得する
     posts = repository.get_posts(session, user_id, TIMELINE_LIMIT)

@@ -1,10 +1,11 @@
+from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import text
+from sqlalchemy import RowMapping, text
 from sqlalchemy.orm import Session
 
 
-def get_posts(session: Session, user_id: UUID, limit: int):
+def get_posts(session: Session, user_id: UUID, limit: int) -> Sequence[RowMapping]:
     """投稿の一覧を取得する。"""
 
     sql = text("""

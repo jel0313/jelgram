@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from tests.conftest import insert_test_user, rollback_session
+from app.core.db import engine
 
 
 def test_can_connect(db_session: Session) -> None:
@@ -27,14 +27,13 @@ def test_profile_is_created_by_trigger(
     assert display_name == "Aさん"
 
 
-def test_data_is_rolled_back() -> None:
-    """ロールバック用のセッションで作ったデータは、抜けた後に残らない(commit しても)。"""
-    with rollback_session() as session:
-        user_id = insert_test_user(session)
-        session.commit()
+def test_commit_does_not_reach_db(db_session: Session, create_user: Callable[..., UUID]) -> None:
+    """テストの中で commit しても、本当には確定しない(別の接続からは見えない)。"""
+    user_id = create_user()
+    db_session.commit()
 
-    with rollback_session() as session:
-        count = session.execute(
+    with engine.connect() as other_connection:
+        count = other_connection.execute(
             text("select count(*) from profiles where id = :id"), {"id": user_id}
         ).scalar_one()
 
