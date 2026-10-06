@@ -11,12 +11,14 @@ from app.auth.dependencies import get_current_user
 from app.auth.schemas import CurrentUser
 from app.main import app
 
-# 関数:test_〜(引数に client を書く)
+client = TestClient(app)
+
+# 関数:test_〜(引数なし。上で作った client を使う)
 #   1. client で GET /posts を呼ぶ
 #   2. ステータスが 401 であることを assert
 #   3. JSON が {"detail": "認証が必要です"} であることを assert
 
 
-def test_unauthenticated_user_cannot_access_posts(client: TestClient):
+def test_unauthenticated_user_cannot_access_posts():
     """トークンなしは 401。"""
     
