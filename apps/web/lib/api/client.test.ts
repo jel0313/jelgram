@@ -57,19 +57,25 @@ describe("apiFetch", () => {
     expect(init.body).toBe(JSON.stringify({ content: "こんにちは" }));
   });
 
-  it("エラーの応答は、detail を持つ ApiError になる", async () => {
-    fetchMock.mockResolvedValue(jsonResponse(404, { detail: "投稿が見つかりません" }));
+  it("エラーの応答は、message と code を持つ ApiError になる", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(404, { code: "post_not_found", message: "投稿が見つかりません", details: null }),
+    );
 
-    await expect(apiFetch("/posts/1")).rejects.toEqual(new ApiError(404, "投稿が見つかりません"));
+    await expect(apiFetch("/posts/1")).rejects.toEqual(
+      new ApiError(404, "投稿が見つかりません", "post_not_found"),
+    );
   });
 
   it("429 は RateLimitError になる", async () => {
-    fetchMock.mockResolvedValue(jsonResponse(429, { detail: "話しすぎ" }));
+    fetchMock.mockResolvedValue(
+      jsonResponse(429, { code: "chat_rate_limited", message: "話しすぎ", details: null }),
+    );
 
     await expect(apiFetch("/chat", { method: "POST", body: {} })).rejects.toBeInstanceOf(RateLimitError);
   });
 
-  it("detail がない・JSON でないエラーでも、ステータス付きのメッセージになる", async () => {
+  it("message がない・JSON でないエラーでも、ステータス付きのメッセージになる", async () => {
     fetchMock.mockResolvedValue(new Response("Internal Server Error", { status: 500 }));
 
     await expect(apiFetch("/posts")).rejects.toMatchObject({ status: 500, detail: "エラーが発生しました(500)" });

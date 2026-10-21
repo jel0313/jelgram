@@ -6,7 +6,7 @@ import { getAccessToken } from "@/lib/auth";
 import { ApiError, RateLimitError } from "./errors";
 
 type Options = {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   /** JSON にして送る本文 */
   body?: unknown;
 };
@@ -38,21 +38,23 @@ export async function apiFetch<T>(path: string, { method = "GET", body }: Option
   }
 
   if (!response.ok) {
-    const detail = await readDetail(response);
-    if (response.status === 429) throw new RateLimitError(detail);
-    throw new ApiError(response.status, detail);
+    const { message, code } = await readError(response);
+    if (response.status === 429) throw new RateLimitError(message, code);
+    throw new ApiError(response.status, message, code);
   }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 
-/** エラーの応答から、FastAPI の {"detail": "..."} を取り出す */
-async function readDetail(response: Response): Promise<string> {
+/** エラーの応答 {"code": "...", "message": "...", "details": ...} から、表示する文と code を取り出す */
+async function readError(response: Response): Promise<{ message: string; code?: string }> {
   try {
     const data = await response.json();
-    if (typeof data?.detail === "string") return data.detail;
+    if (typeof data?.message === "string") {
+      return { message: data.message, code: typeof data.code === "string" ? data.code : undefined };
+    }
   } catch {
     // JSON でない応答
   }
-  return `エラーが発生しました(${response.status})`;
+  return { message: `エラーが発生しました(${response.status})` };
 }
