@@ -4,3 +4,5 @@
 JWT_ALGORITHMS = ["ES256"]
 # ログイン済みユーザー向けのトークンだけを通す
 JWT_AUDIENCE = "authenticated"
+# ログアウトしたセッションの失効リスト(Redis のキー)
+REVOKED_SESSION_KEY = "revoked_session:{session_id}"
