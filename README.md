@@ -35,17 +35,20 @@
 | DB・画像・認証 | Supabase(PostgreSQL・Storage・Auth) | Supabase         |
 | AI             | Gemini API(`gemini-3.5-flash-lite`) | —                |
 
-ツール:Node.js 24(fnm)・pnpm・uv・pytest・Ruff・Vitest
+ツール:Node.js 24(fnm)・pnpm・uv・pytest・Ruff・mypy・Vitest・Docker(ローカルの Supabase・Redis)・Supabase CLI
 
 ### システムの流れ
 
 ```
 ブラウザ(Next.js / localhost:3000)
    ├→ Supabase Auth ……… Google ログイン → JWT を受け取る
-   ├→ FastAPI(localhost:8000)… JWT 付きで API を呼ぶ
-   │     ├→ Supabase PostgreSQL
-   │     └→ Gemini API
-   └→ Supabase Storage …… 画像を直接アップロード(署名付き URL は FastAPI から取得)
+   └→ FastAPI(localhost:8000/api/v1)… JWT 付きで API を呼ぶ
+         ├→ Supabase PostgreSQL ……… 生 SQL
+         ├→ Supabase Storage …………… 画像(非公開バケット・署名付き URL)
+         ├→ Redis ………………………… キャッシュ・レート制限・ジョブキュー
+         └→ Gemini API
+
+Celery ワーカー(別プロセス)… Outbox のイベント(画像の加工・AI 判定・プッシュ通知)・定期ジョブ
 ```
 
 ### フォルダ構成
@@ -54,15 +57,16 @@
 jelgram/
 ├── apps/
 │   ├── api/                FastAPI(バックエンド)
-│   │   ├── app/            アプリ本体(main.py・config.py・routers/)
-│   │   ├── tests/          pytest のテスト
-│   │   ├── pyproject.toml  依存パッケージ・pytest・Ruff の設定
-│   │   └── .env.example    環境変数のひな形
-│   └── web/                Next.js(フロントエンド。5.1 で作成予定)
-│       └── .env.example    環境変数のひな形
-├── supabase/migrations/    DB スキーマの SQL
-├── docs/                   要件定義書・WBS・詳細設計書など
-└── .node-version           Node.js のバージョン(24)
+│   │   ├── app/            アプリ本体(機能別のフォルダ。docs/バックエンド構成.md)
+│   │   ├── tests/          unit(UT)・integration(IT)・load(負荷テスト)
+│   │   ├── scripts/        シードデータ
+│   │   └── Dockerfile
+│   └── web/                Next.js(フロントエンド。画面はモック)
+├── supabase/               config.toml(ローカル環境)・migrations/(DB スキーマの SQL)
+├── docs/                   要件定義書・基本設計・詳細設計・テスト仕様・運用手順書など
+├── infra/                  Prometheus の設定
+├── docker-compose.yml      Redis・API・ワーカー・監視
+└── .github/                CI(workflows)・Dependabot・家庭教師モードの指示書
 ```
 
 ---
@@ -109,12 +113,14 @@ cp apps/web/.env.example apps/web/.env.local
 ### 2.4 パッケージを入れる
 
 ```
+brew install supabase/tap/supabase   # Supabase CLI(ローカルの DB・Auth・Storage)
 cd apps/api
 uv sync
 ```
 
 - Python 3.13 と仮想環境(`apps/api/.venv`)も自動で用意される。`source .venv/bin/activate` は不要
-- フロントエンドは 5.1 で作成後、`cd apps/web && pnpm install` を行う
+- Docker Desktop を起動しておく(ローカルの Supabase と Redis が使う)
+- フロントエンドは `cd apps/web && pnpm install`
 
 ### 2.5 VS Code の設定
 
@@ -127,7 +133,18 @@ uv sync
 
 ## 3. 毎日の立ち上げ方
 
-### 3.1 バックエンド(FastAPI)
+### 3.1 ローカルの Supabase と Redis
+
+```
+supabase start -x studio,imgproxy,edge-runtime,logflare,vector,realtime,postgres-meta,supavisor
+docker compose up -d redis
+```
+
+- 初回はイメージの取得に数分かかる。マイグレーション(`supabase/migrations/`)も自動で適用される
+- 接続情報(URL・キー)は `supabase status` で見られる。`apps/api/.env` にはこの値を入れる(クラウドの開発用 Supabase を使う場合はそちらの値)
+- 止めるとき:`supabase stop`・`docker compose stop`
+
+### 3.2 バックエンド(FastAPI)
 
 ```
 cd apps/api
@@ -136,15 +153,24 @@ uv run fastapi dev app/main.py
 
 | URL                                                            | 内容                                        |
 | -------------------------------------------------------------- | ------------------------------------------- |
-| [http://localhost:8000/health](http://localhost:8000/health)   | 動作確認。`{"status":"ok"}` が出れば OK     |
+| [http://localhost:8000/health](http://localhost:8000/health)   | DB・Redis の接続確認                        |
 | [http://localhost:8000/docs](http://localhost:8000/docs)       | API ドキュメント。ここから API を試せる     |
+| [http://127.0.0.1:54324](http://127.0.0.1:54324)               | Mailpit(ローカルで送ったメールの受信箱)   |
 
-- ファイルを保存すると自動で再起動する
-- 止めるときは `Ctrl + C`
+- API は `/api/v1` の下にある(例:`/api/v1/posts`)
+- ファイルを保存すると自動で再起動する。止めるときは `Ctrl + C`
 
-### 3.2 フロントエンド(Next.js)※ 5.1 で作成後
+### 3.3 ワーカー(画像の加工・通知・定期ジョブ)
 
-**別のターミナル** で起動する(バックエンドと同時に動かす)。
+別のターミナルで2つ起動する。
+
+```
+cd apps/api
+uv run celery -A app.worker.celery_app worker --loglevel=INFO
+uv run celery -A app.worker.celery_app beat --loglevel=INFO
+```
+
+### 3.4 フロントエンド(Next.js)
 
 ```
 cd apps/web
@@ -152,12 +178,6 @@ pnpm dev
 ```
 
 → [http://localhost:3000](http://localhost:3000) を開く
-
-### 3.3 始める前のチェック
-
-- **開発用 Supabase が一時停止していないか**:しばらく使っていないと止まる。[Supabase のダッシュボード](https://supabase.com/dashboard) で `jelgram-dev` を開き、Paused なら **Restore** を押す(数分かかる)
-- **最新の状態か**:`git pull`
-- **依存パッケージが増えていないか**:`pyproject.toml` や `uv.lock` が変わっていたら `uv sync`
 
 ---
 
@@ -168,19 +188,21 @@ pnpm dev
 | やりたいこと                     | コマンド                         |
 | -------------------------------- | -------------------------------- |
 | 起動                             | `uv run fastapi dev app/main.py` |
-| テストを全部実行                 | `uv run pytest`                  |
-| テストを詳しく表示               | `uv run pytest -v`               |
-| 1ファイルだけテスト              | `uv run pytest tests/test_health.py` |
+| テストを全部実行(UT + IT)      | `uv run pytest`                  |
+| UT だけ(DB・Redis 不要)        | `uv run pytest tests/unit`       |
+| カバレッジ                       | `uv run pytest --cov`            |
+| 型チェック                       | `uv run mypy app`                |
 | コードの書き方を整える           | `uv run ruff format .`           |
 | 問題のある書き方をチェック       | `uv run ruff check .`            |
-| 自動で直せるものは直す           | `uv run ruff check . --fix`      |
+| シードデータを入れる(ローカルだけ) | `uv run python -m scripts.seed --users 20 --posts 10` |
+| 負荷テスト                       | `uv run locust -f tests/load/locustfile.py --host http://localhost:8000` |
 | パッケージを追加                 | `uv add <パッケージ名>`          |
-| 開発用パッケージを追加           | `uv add --dev <パッケージ名>`    |
 | `uv.lock` どおりに入れ直す       | `uv sync`                        |
 
 - Python のコマンドは必ず `uv run` を付ける(`.venv` の Python が使われる)
+- IT は `supabase start` と `docker compose up -d redis` が必要。テストごとに DB をロールバックするので、データは残らない
 
-### フロントエンド(`apps/web` で実行)※ 5.1 で作成後
+### フロントエンド(`apps/web` で実行)
 
 | やりたいこと     | コマンド             |
 | ---------------- | -------------------- |
@@ -188,7 +210,6 @@ pnpm dev
 | テスト           | `pnpm test`          |
 | パッケージを追加 | `pnpm add <名前>`    |
 
-実際のスクリプト名は 5.1 で決まり次第、ここを更新する。
 
 ---
 
@@ -198,19 +219,20 @@ pnpm dev
 
 ### バックエンド:`apps/api/.env`
 
+項目と説明は [apps/api/.env.example](apps/api/.env.example) にすべて書いてある。主なもの:
+
 | 項目                     | 取得場所・内容                                                                  |
 | ------------------------ | ------------------------------------------------------------------------------- |
-| `SUPABASE_URL`           | Supabase → Project Settings → Data API                                          |
-| `SUPABASE_SECRET_KEY`    | Supabase → Project Settings → API Keys(`sb_secret_...`)。**秘密**             |
-| `DATABASE_URL`           | Supabase → 画面上部の Connect → **Session pooler**。`[YOUR-PASSWORD]` を `[ ]` ごと DB パスワードに置き換える。**秘密** |
-| `SUPABASE_STORAGE_BUCKET`| `post-images`(初期値のまま)                                                  |
-| `GEMINI_API_KEY`         | [Google AI Studio](https://aistudio.google.com/apikey)(`jelgram-dev` プロジェクト)。**秘密** |
-| `GEMINI_MODEL`           | `gemini-3.5-flash-lite`(初期値のまま)                                        |
-| `RATE_LIMIT_*`           | レート制限の上限(初期値のまま。要件定義書 4.2)                              |
+| `SUPABASE_URL`・`SUPABASE_SECRET_KEY` | ローカル:`supabase status` / クラウド:Project Settings → API Keys。**秘密** |
+| `DATABASE_URL`           | ローカル:`postgresql://postgres:postgres@127.0.0.1:54322/postgres` / クラウド:Connect → Session pooler。**秘密** |
+| `REDIS_URL`              | `redis://localhost:6379/0`                                                      |
+| `GEMINI_API_KEY`         | [Google AI Studio](https://aistudio.google.com/apikey)。**秘密**               |
+| `RATE_LIMIT_*`           | レート制限の上限(要件定義書 4.2)                                             |
 | `CORS_ALLOW_ORIGINS`     | `http://localhost:3000`(複数ある場合はカンマ区切り)                          |
+| `APP_ENV`                | development / test / production。本番では /docs が非公開になる                 |
 
 - 必須項目が空だと、API の起動時にエラーになる(エラーに項目名が出る)
-- テストは `.env` を使わず、ダミー値で動く
+- テストは `.env` の秘密の値を使わない(ダミー値とローカルの DB・Redis で動く)
 
 ### フロントエンド:`apps/web/.env.local`
 
@@ -218,7 +240,7 @@ pnpm dev
 | -------------------------------------- | ---------------------------------------------------------- |
 | `NEXT_PUBLIC_SUPABASE_URL`             | バックエンドの `SUPABASE_URL` と同じ                        |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase → Project Settings → API Keys(`sb_publishable_...`) |
-| `NEXT_PUBLIC_API_BASE_URL`             | `http://localhost:8000`                                    |
+| `NEXT_PUBLIC_API_BASE_URL`             | `http://localhost:8000/api/v1`(API は /api/v1 の下)     |
 
 - `NEXT_PUBLIC_` で始まる値はブラウザに公開される。**秘密の値(secret key など)は絶対に入れない**
 
@@ -226,22 +248,25 @@ pnpm dev
 
 ## 6. 開発の進め方
 
-機能ごとに、次の4工程を1周ずつ回す(要件定義書 7.4)。
+`.github/copilot-instructions.md`(家庭教師モード)の工程で進める。V 字モデル:
 
 ```
-詳細設計 → 製造 → テスト → 打鍵 → コミット
+要件定義 ─────────────────── 総合テスト(ST)
+   基本設計 ─────────── 結合テスト(IT)
+      詳細設計 ─── 単体テスト(UT)
+            製造
 ```
 
-| 工程     | やること                                                        | 成果物                                              |
-| -------- | --------------------------------------------------------------- | --------------------------------------------------- |
-| 詳細設計 | 作るもの・API 仕様・テストケース・打鍵項目を決める              | `docs/詳細設計_手順/<ID>_<機能名>/詳細設計書.md`・`マニュアル.md` |
-| 製造     | マニュアルの STEP に沿ってコードを書く                          | ソースコード                                        |
-| テスト   | 自動テストを書いて、すべて成功させる                            | テストコード                                        |
-| 打鍵     | 実際に動かして確認する(画面がない間は `/docs` から API を呼ぶ) | マニュアルの打鍵結果欄                              |
+| 工程 | 成果物 |
+|---|---|
+| 要件定義 | [docs/要件定義書.md](docs/要件定義書.md) |
+| 基本設計 | [docs/基本設計/](docs/基本設計/API一覧.md) |
+| 詳細設計 | [docs/詳細設計/](docs/詳細設計/基盤.md) |
+| 製造 | `apps/api/app/`([バックエンド構成](docs/バックエンド構成.md)に従う) |
+| UT・IT・ST | [docs/テスト仕様/](docs/テスト仕様/IT_シナリオ.md)・`apps/api/tests/` |
+| 不具合 | [docs/不具合管理表.md](docs/不具合管理表.md) |
 
-- 工程が終わるたびに [WBS](docs/WBS_進捗管理表.md) の記号を更新する(🔄 作業中 → ✅ 完了)。全工程が終わったら完了日を記入する
-- 作っている途中で設計を変えたら、詳細設計書も合わせて直す
-- 新しい API は `apps/api/app/routers/` にファイルを足し、`app/main.py` に `include_router` で登録する
+- 作業は必ずブランチを切る(`feature/<機能>`・`practice/<問題ID>`。[運用手順書](docs/運用手順書.md) 5章)
 - API の応答は必ず Pydantic モデルで定義する(フロントエンドの型を自動生成するため)
 
 ---
@@ -250,43 +275,28 @@ pnpm dev
 
 テーブルの追加・変更は、必ず SQL ファイルで管理する。
 
-1. `supabase/migrations/` に日時付きのファイルを追加する(例:`20261001000000_add_xxx.sql`)
-2. Supabase の **SQL Editor** → **New query** に中身を貼り付けて **Run**
-3. 開発用(`jelgram-dev`)で確認してから、本番用にも同じ手順で実行する
+1. `supabase migration new <名前>` でファイルを作る(`supabase/migrations/<日時>_<名前>.sql`)
+2. SQL を書き、`supabase db reset` でローカルに最初から適用し直して確かめる(ローカルのデータは消える)
+3. テスト(`uv run pytest`)が通ったら、本番は `supabase link` → `supabase db push`
 
 - 管理画面(Table Editor)で直接テーブルを変更しない。SQL ファイルと実際の DB がずれてしまう
-- すでに実行した SQL ファイルは書き換えず、変更は新しいファイルで追加する
+- すでに適用した SQL ファイルは書き換えず、変更は新しいファイルで追加する
+- 既存データがあるテーブルに NOT NULL の列を足すときは「NULL 可で追加 → 既存行を埋める → 制約を付ける」の順にする(例:`20261022000000_profiles_extend.sql`)
 
 ---
 
 ## 8. コミット前のチェック
 
-テストの自動実行(CI)は3次開発で入れる予定。それまでは **手元で必ず確認してからコミット** する。
+push すると GitHub Actions が同じチェックを自動で行う(`.github/workflows/api.yml`)。手元でも確認してからコミットする。
 
 ```
 cd apps/api
-uv run ruff format .
-uv run ruff check .
-uv run pytest
+uv run ruff format . && uv run ruff check . && uv run mypy app && uv run pytest
 ```
 
-3つとも問題なければ、ルートに戻って確認する。
-
-```
-cd ../..
-git status
-```
-
-- `apps/api/.env`・`apps/web/.env.local` が一覧に **出ていない** こと(出ていたら絶対にコミットしない)
-- `.venv/`・`node_modules/` が一覧に出ていないこと
-
-```
-git add <ファイル>
-git commit -m "4.2 認証(JWT検証)を実装"
-git push
-```
-
-- コミットメッセージは日本語で、先頭に WBS の ID を付ける
+- 自動で確認したい場合:`uv run pre-commit install --config ../../.pre-commit-config.yaml`
+- `apps/api/.env`・`apps/web/.env.local` が `git status` に **出ていない** こと(出ていたら絶対にコミットしない)
+- コミットメッセージは日本語で、先頭に章や問題の ID を付ける
 
 ---
 
@@ -314,22 +324,35 @@ git push
 | 起動時に `String should have at least 1 character`       | `.env` の必須項目の値が空                                                                |
 | `Address already in use`                                 | 別のターミナルでサーバーが動いたまま。そちらを `Ctrl + C` で止める                       |
 | DB につながらない                                        | 開発用 Supabase が一時停止していないか確認する([3.3](#33-始める前のチェック))         |
+| クラウドの開発用 DB につながらない                        | Supabase のダッシュボードで `jelgram-dev` が Paused なら Restore(しばらく使わないと止まる) |
 | 起動やテストがエラーも出ずに固まる                      | プロジェクトが iCloud 同期のフォルダ(デスクトップ・書類)にある。`~/dev` に移す([2.2](#22-リポジトリを取得する)) |
 | `node -v` が 24 系にならない                             | `~/.zshrc` の fnm の設定が末尾にあるか確認し、ターミナルを開き直す                       |
 | `VIRTUAL_ENV=... does not match` という警告              | 別の仮想環境が有効なだけで、動作に問題はない。気になる場合は `deactivate`                 |
 | VS Code で import に赤い波線                             | Python のインタープリターを `apps/api/.venv` に切り替える                                |
 | ブラウザで API の結果が CORS エラーになる                | `CORS_ALLOW_ORIGINS` に画面の URL(`http://localhost:3000`)が入っているか確認する        |
+| IT が「ローカルの DB が必要です」で止まる               | `supabase start` と `docker compose up -d redis` を実行する                              |
+| `supabase/config.toml` を変えたのに反映されない         | `supabase stop` → `supabase start` で再起動する                                          |
+| Docker のイメージ取得で `error getting credentials`     | Docker Desktop にサインインし直す。急ぐなら空の設定で取得:`DOCKER_CONFIG=$(mktemp -d) docker pull <イメージ>` |
+| `/health` が 503                                        | 応答の `checks` で DB・Redis のどちらが落ちているか見る                                  |
+| 画像の URL がすぐ見られなくなる                          | 署名付き URL の期限(既定 10 分)。画面は取り直す                                        |
 
-機能ごとのトラブルは、各機能のマニュアル末尾の「困ったときは」を見る。
+障害の調べ方は [運用手順書](docs/運用手順書.md) 4章。
 
 ---
 
 ## 11. 資料一覧
 
-| 資料                                                          | 内容                                          |
-| ------------------------------------------------------------- | --------------------------------------------- |
-| [要件定義書](docs/要件定義書.md)                               | 何を作るか・技術選定・DB/API 設計・ロードマップ |
-| [WBS](docs/WBS_進捗管理表.md)                                  | 作業一覧と進捗                                |
-| [開発環境構築手順](docs/開発環境構築手順.md)                   | アカウント・Supabase・Google の設定手順       |
-| [詳細設計_手順/](docs/詳細設計_手順/)                          | 機能ごとの詳細設計書とマニュアル              |
-| [supabase/migrations/](supabase/migrations/)                   | DB スキーマの SQL                             |
+| 資料 | 内容 |
+|---|---|
+| [APP_STATUS.md](APP_STATUS.md) | 現状(機能一覧・問題点・ライブラリ) |
+| [要件定義書](docs/要件定義書.md) | 何を作るか・技術選定・非機能要件 |
+| [基本設計/](docs/基本設計/API一覧.md) | API 一覧・ER 図・認証認可・エラー方針・外部連携 |
+| [詳細設計/](docs/詳細設計/基盤.md) | 機能ごとの処理フロー・関数・SQL |
+| [テスト仕様/](docs/テスト仕様/IT_シナリオ.md) | UT・IT・ST の仕様と結果 |
+| [不具合管理表](docs/不具合管理表.md) | 見つかった不具合と再発防止 |
+| [バックエンド構成](docs/バックエンド構成.md) | フォルダ構成・層のルール |
+| [運用手順書](docs/運用手順書.md) | デプロイ・監視・バックアップ・障害対応 |
+| [学習更新履歴](docs/学習更新履歴.md) | ライブラリ・書き方の最新化の記録 |
+| [WBS](docs/WBS_進捗管理表.md) | 作業一覧と進捗 |
+| [開発環境構築手順](docs/開発環境構築手順.md) | アカウント・Supabase・Google の設定手順 |
+| [画面設計/](docs/画面設計/画面一覧.md) | 画面ごとの画像と仕様(モック) |
