@@ -1,0 +1,29 @@
+# コミットの直前に自動でチェックする(19-5)。
+# 初回だけ:cd apps/api && uv run pre-commit install --config ../../.pre-commit-config.yaml
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff format
+        entry: bash -c 'cd apps/api && uv run ruff format .'
+        language: system
+        files: ^apps/api/.*\.py$
+        pass_filenames: false
+      - id: ruff-check
+        name: ruff check
+        entry: bash -c 'cd apps/api && uv run ruff check --fix .'
+        language: system
+        files: ^apps/api/.*\.py$
+        pass_filenames: false
+      - id: mypy
+        name: mypy
+        entry: bash -c 'cd apps/api && uv run mypy app'
+        language: system
+        files: ^apps/api/app/.*\.py$
+        pass_filenames: false
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: detect-private-key  # 秘密鍵をコミットしない
+      - id: check-added-large-files
+      - id: check-merge-conflict

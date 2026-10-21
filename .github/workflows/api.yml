@@ -1,0 +1,80 @@
+# バックエンドの CI(14-9・17-4・22-6)。push・プルリクエストのたびに自動で実行する。
+#   lint(ruff・mypy)→ UT → IT(ローカル Supabase + Redis)、並行して脆弱性スキャン
+name: api
+
+on:
+  push:
+    branches: [main]
+    paths: ["apps/api/**", "supabase/**", ".github/workflows/api.yml"]
+  pull_request:
+    paths: ["apps/api/**", "supabase/**", ".github/workflows/api.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: apps/api
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+      - run: uv run mypy app
+
+  unit:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run pytest tests/unit --cov --cov-fail-under=0 --cov-report= -q
+      - name: UT のカバレッジ(service・core 層で C0/C1 80% 以上。SQL・ルーターは IT で確認)
+        run: >-
+          uv run coverage report --fail-under=80
+          --omit="*/repository.py,*/router.py,app/main.py,app/worker/celery_app.py,app/worker/tasks.py"
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: unit
+    services:
+      redis:
+        image: redis:8-alpine
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: ローカルの Supabase を起動(マイグレーションも適用される)
+        working-directory: .
+        run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector,realtime,postgres-meta,supavisor
+      - run: uv sync --locked
+      - name: UT + IT(カバレッジ 80% 以上)
+        run: uv run pytest --cov -q
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+      - name: 依存パッケージの既知の脆弱性を調べる
+        run: uv export --locked --no-dev --no-hashes -o requirements.txt && uvx pip-audit -r requirements.txt --strict

@@ -1,0 +1,71 @@
+# ローカル開発・結合テスト(IT)用(17-2)。
+# DB・Storage・Auth は Supabase CLI のローカル環境(supabase start)を使い、ここでは起動しない。
+#
+#   docker compose up -d redis                  … IT・開発に必要な Redis だけ
+#   docker compose up -d                        … API・ワーカー・beat・Redis
+#   docker compose --profile monitoring up -d   … 上に加えて Prometheus・Jaeger(22章)
+
+services:
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./apps/api
+    env_file: ./apps/api/.env
+    environment:
+      # コンテナの中から、Mac で動いている Supabase・Redis に接続する
+      DATABASE_URL: postgresql://postgres:postgres@host.docker.internal:54322/postgres
+      SUPABASE_URL: http://host.docker.internal:54321
+      REDIS_URL: redis://redis:6379/0
+      SMTP_HOST: host.docker.internal
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker:
+    build: ./apps/api
+    command: ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=INFO", "--concurrency=2"]
+    env_file: ./apps/api/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@host.docker.internal:54322/postgres
+      SUPABASE_URL: http://host.docker.internal:54321
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  beat:
+    build: ./apps/api
+    command: ["celery", "-A", "app.worker.celery_app", "beat", "--loglevel=INFO"]
+    env_file: ./apps/api/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@host.docker.internal:54322/postgres
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:v3.7.0
+    profiles: ["monitoring"]
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+
+  jaeger:
+    image: jaegertracing/jaeger:2.11.0
+    profiles: ["monitoring"]
+    ports:
+      - "16686:16686"  # 画面
+      - "4318:4318"    # OTLP(HTTP)の受け口
