@@ -1,68 +1,57 @@
-"""テスト共通の準備。
+"""テスト共通の準備(14-1)。
 
-app.main は import された時点で設定を読むため、テスト用のダミー値を
-import より前に環境変数へ設定する(環境変数は .env より優先されるため、本物のキーは使われない)。
+app.main は import された時点で設定を読むため、テスト用の値を import より前に環境変数へ設定する。
+環境変数は .env より優先されるので、本物のキー・クラウドの DB は使われない。
+
+    UT(tests/unit)       … DB・Redis・AI・ストレージを使わない。全部偽物に差し替える
+    IT(tests/integration)… ローカルの Supabase(DB)と Redis を使う。AI・ストレージだけ偽物
 """
 
 import os
 
+os.environ["APP_ENV"] = "test"
 os.environ["SUPABASE_URL"] = "https://test.supabase.co"
 os.environ["SUPABASE_SECRET_KEY"] = "test-secret-key"
-# DATABASE_URL は設定しない(.env の開発用 DB を使い、テストごとにロールバックする)
 os.environ["GEMINI_API_KEY"] = "test-gemini-key"
 os.environ["CORS_ALLOW_ORIGINS"] = "http://localhost:3000"
+os.environ["LOG_LEVEL"] = "WARNING"
+os.environ["WEBHOOK_SECRET"] = "test-webhook-secret"
+# IT はローカルの Supabase(supabase start)の DB を使う。クラウドの無料枠を消費しない
+os.environ["DATABASE_URL"] = os.getenv(
+    "TEST_DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+)
+os.environ["REDIS_URL"] = os.getenv("TEST_REDIS_URL", "redis://127.0.0.1:6379/15")
 
-from collections.abc import Callable, Iterator  # noqa: E402
-from uuid import UUID, uuid4  # noqa: E402
+for key in ("SMTP_HOST", "SENTRY_DSN", "METRICS_TOKEN", "VAPID_PRIVATE_KEY"):
+    os.environ.pop(key, None)  # .env に書いてあっても、テストでは使わない(未設定にする)
 
+from collections.abc import Iterator  # noqa: E402
+
+import fakeredis  # noqa: E402
 import pytest  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import text  # noqa: E402
-from sqlalchemy.orm import Session  # noqa: E402
+from fastapi import FastAPI  # noqa: E402
 
-from app.core.db import engine, get_db  # noqa: E402
-from app.main import app  # noqa: E402
+from app.main import app as fastapi_app  # noqa: E402
+from tests.fakes import FakeAI, FakeStorage  # noqa: E402
 
 
 @pytest.fixture
-def db_session() -> Iterator[Session]:
-    """テストが終わったら全部ロールバックする DB セッション(開発用 DB を使う)。
-
-    テストの中で session.commit() を呼んでも、セーブポイントの確定にとどまる(外側は確定しない)。
-    """
-    connection = engine.connect()
-    transaction = connection.begin()
-    session = Session(bind=connection, join_transaction_mode="create_savepoint")
-
-    yield session
-
-    session.close()
-    transaction.rollback()
-    connection.close()
+def app() -> Iterator[FastAPI]:
+    """偽物のクライアントを入れたアプリ。テストが終わったら差し替えを元に戻す。"""
+    fastapi_app.state.redis = fakeredis.FakeRedis(decode_responses=True)
+    fastapi_app.state.storage = FakeStorage()
+    fastapi_app.state.ai_client = FakeAI()
+    yield fastapi_app
+    fastapi_app.dependency_overrides.clear()
 
 
 @pytest.fixture
-def db_client(db_session: Session) -> Iterator[TestClient]:
-    """API が db_session を使うように差し替えた TestClient。"""
-    app.dependency_overrides[get_db] = lambda: db_session
-    yield TestClient(app)
-    app.dependency_overrides.clear()
+def fake_storage(app: FastAPI) -> FakeStorage:
+    storage: FakeStorage = app.state.storage
+    return storage
 
 
 @pytest.fixture
-def create_user(db_session: Session) -> Callable[..., UUID]:
-    """テスト用ユーザーを作る関数を返す(db_session と一緒にロールバックされる)。"""
-
-    def _create_user(display_name: str = "テストユーザー") -> UUID:
-        # auth.users に入れると、トリガーで profiles も作られる
-        user_id = uuid4()
-        db_session.execute(
-            text(
-                "insert into auth.users (id, email, raw_user_meta_data) "
-                "values (:id, :email, jsonb_build_object('full_name', cast(:name as text)))"
-            ),
-            {"id": user_id, "email": f"{user_id}@example.com", "name": display_name},
-        )
-        return user_id
-
-    return _create_user
+def fake_ai(app: FastAPI) -> FakeAI:
+    ai: FakeAI = app.state.ai_client
+    return ai
