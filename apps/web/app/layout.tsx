@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Noto_Sans_JP } from "next/font/google";
+import { Instrument_Serif, Noto_Sans_JP } from "next/font/google";
 
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -12,6 +12,14 @@ const notoSansJp = Noto_Sans_JP({
   subsets: ["latin"],
 });
 
+// ロゴ・大きな見出し用(英字だけ)
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-display",
+  weight: "400",
+  style: ["normal", "italic"],
+  subsets: ["latin"],
+});
+
 export const metadata: Metadata = {
   title: "jelgram",
   description: "AI が常駐する SNS",
@@ -19,7 +27,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="ja" className={`${notoSansJp.variable} h-full antialiased`}>
+    <html lang="ja" className={`${notoSansJp.variable} ${instrumentSerif.variable} h-full antialiased`}>
       <body className="min-h-full">
         <AuthProvider>
           <TooltipProvider>{children}</TooltipProvider>

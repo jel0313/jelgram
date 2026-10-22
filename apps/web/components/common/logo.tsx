@@ -1,11 +1,11 @@
 import { cn } from "@/lib/utils";
 
-/** jelgram のロゴ */
+/** jelgram のロゴ(筆記体風の英字 + ブランドのグラデーション) */
 export function Logo({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "bg-linear-to-r from-violet-500 to-pink-500 bg-clip-text font-heading text-2xl font-bold tracking-tight text-transparent",
+        "text-brand inline-block pr-1 font-display text-3xl leading-none tracking-tight italic",
         className,
       )}
     >

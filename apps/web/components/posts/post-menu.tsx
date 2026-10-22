@@ -51,11 +51,11 @@ export function PostMenu({ post, onUpdated, onDeleted }: Props) {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="投稿のメニュー">
+          <Button variant="ghost" size="icon" className="rounded-full" aria-label="投稿のメニュー">
             <MoreHorizontalIcon />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent align="end" className="w-44 rounded-2xl p-1.5">
           <DropdownMenuItem onClick={() => setEditing(true)}>
             <PencilIcon />
             編集

@@ -41,11 +41,11 @@ export function ChatSessionMenu() {
   return (
     <DropdownMenu onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon-sm" aria-label="会話の履歴">
-          <HistoryIcon />
+        <Button variant="ghost" size="icon" className="rounded-full" aria-label="会話の履歴">
+          <HistoryIcon className="size-4.5" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-72">
+      <DropdownMenuContent align="end" className="w-72 rounded-2xl p-1.5">
         <DropdownMenuLabel className="flex items-center gap-2">
           会話の履歴
           <PhaseBadge phase="5次" />
@@ -66,7 +66,7 @@ export function ChatSessionMenu() {
                   {formatRelativeTime(session.last_message_at)}
                 </span>
               </span>
-              {session.session_id === sessionId && <CheckIcon className="text-violet-600" />}
+              {session.session_id === sessionId && <CheckIcon className="text-(--brand-via)" />}
             </DropdownMenuItem>
           ))
         )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOutIcon, PencilIcon, UserIcon } from "lucide-react";
+import { LogOutIcon, MenuIcon, PencilIcon, UserIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
-/** ログイン中のユーザーと、ログアウトのメニュー */
+/** ログイン中のユーザーと、ログアウトのメニュー(compact:スマホの上のバー用) */
 export function UserMenu({ compact = false }: { compact?: boolean }) {
   const { user, signOut } = useAuth();
   const router = useRouter();
@@ -32,29 +32,43 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
     <DropdownMenu>
       <DropdownMenuTrigger
         className={cn(
-          "flex items-center gap-3 rounded-full text-left transition-colors hover:bg-accent",
-          compact ? "p-1" : "w-full p-2",
+          "group flex items-center gap-4 rounded-xl text-left transition-colors hover:bg-accent data-[state=open]:bg-accent",
+          compact ? "p-1.5" : "w-full p-3",
         )}
+        aria-label="メニュー"
       >
-        <UserAvatar name={user.display_name} src={user.avatar_url} />
-        {!compact && (
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold">{user.display_name}</span>
-            <span className="block truncate text-xs text-muted-foreground">{user.email}</span>
-          </span>
+        {compact ? (
+          <UserAvatar name={user.display_name} src={user.avatar_url} size="sm" className="size-7" />
+        ) : (
+          <>
+            <MenuIcon className="size-6.5 shrink-0" strokeWidth={1.8} />
+            <span className="hidden min-w-0 flex-1 xl:block">
+              <span className="block truncate text-[15px]">その他</span>
+            </span>
+          </>
         )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align={compact ? "end" : "start"} className="w-56">
-        <DropdownMenuLabel className="truncate">{user.display_name}</DropdownMenuLabel>
+      <DropdownMenuContent
+        align={compact ? "end" : "start"}
+        side={compact ? "bottom" : "top"}
+        className="w-64 rounded-2xl p-2"
+      >
+        <DropdownMenuLabel className="flex items-center gap-3 px-2 py-2">
+          <UserAvatar name={user.display_name} src={user.avatar_url} />
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-semibold text-foreground">{user.display_name}</span>
+            {user.email && <span className="block truncate text-xs font-normal">{user.email}</span>}
+          </span>
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
+        <DropdownMenuItem asChild className="rounded-lg py-2">
           <Link href={`/users/${user.id}`}>
             <UserIcon />
             プロフィール
             <PhaseBadge phase="4次" className="ml-auto" />
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
+        <DropdownMenuItem asChild className="rounded-lg py-2">
           <Link href="/settings/profile">
             <PencilIcon />
             プロフィールを編集
@@ -62,7 +76,7 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleSignOut}>
+        <DropdownMenuItem onClick={handleSignOut} className="rounded-lg py-2">
           <LogOutIcon />
           ログアウト
         </DropdownMenuItem>
