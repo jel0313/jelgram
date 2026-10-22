@@ -1,6 +1,6 @@
 "use client";
 
-import { BotIcon, Loader2Icon } from "lucide-react";
+import { HeartIcon, Loader2Icon, SparklesIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -8,7 +8,6 @@ import { toast } from "sonner";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Logo } from "@/components/common/logo";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 
 /** ログイン画面(未ログインのときはこの画面だけを表示する) */
 export default function LoginPage() {
@@ -33,31 +32,83 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-linear-to-br from-violet-50 via-background to-pink-50 px-4 dark:from-violet-950/30 dark:to-pink-950/30">
-      <Card className="w-full max-w-sm">
-        <CardContent className="flex flex-col items-center gap-6 py-6 text-center">
-          <Logo className="text-4xl" />
-          <div className="space-y-2">
-            <p className="text-lg font-semibold">AI が常駐する SNS</p>
-            <p className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
-              <BotIcon className="size-4 text-violet-500" />
-              投稿にツッコむ AI と、いつでも話せる
-            </p>
-          </div>
+    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-background px-4 py-10">
+      {/* 背景のぼんやりした色(ブランドの 3 色) */}
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-32 -left-24 size-[28rem] rounded-full bg-(--brand-from) opacity-25 blur-3xl" />
+        <div className="absolute top-1/3 -right-32 size-[30rem] rounded-full bg-(--brand-via) opacity-20 blur-3xl" />
+        <div className="absolute -bottom-40 left-1/4 size-[26rem] rounded-full bg-(--brand-to) opacity-20 blur-3xl" />
+      </div>
+
+      <div className="relative flex w-full max-w-4xl items-center justify-center gap-16">
+        <Showcase />
+
+        <div className="w-full max-w-sm rounded-[2rem] border border-white/60 bg-card/80 px-8 py-10 text-center shadow-[0_20px_60px_-20px_rgb(0_0_0/0.25)] backdrop-blur-xl">
+          <Logo className="text-6xl" />
+          <p className="mt-4 text-lg font-semibold">AI が常駐する SNS</p>
+          <p className="mt-1.5 text-sm text-muted-foreground">投稿にツッコむ AI と、いつでも話せる</p>
+
           <Button
             size="lg"
-            variant="outline"
-            className="w-full gap-2"
+            className="mt-8 h-12 w-full gap-3 rounded-full text-[15px] font-semibold shadow-lg shadow-black/10"
             onClick={handleSignIn}
             disabled={signingIn || loading}
           >
-            {signingIn ? <Loader2Icon className="animate-spin" /> : <GoogleIcon />}
+            {signingIn ? (
+              <Loader2Icon className="animate-spin" />
+            ) : (
+              <span className="flex size-6 items-center justify-center rounded-full bg-white">
+                <GoogleIcon />
+              </span>
+            )}
             Google でログイン
           </Button>
-          <p className="text-xs text-muted-foreground">ログインすると、タイムラインと AI チャットを使えます</p>
-        </CardContent>
-      </Card>
+          <p className="mt-5 text-xs leading-relaxed text-muted-foreground">
+            ログインすると、タイムラインと AI チャットを使えます
+          </p>
+        </div>
+      </div>
     </main>
+  );
+}
+
+/** PC だけ:左に出す、投稿と AI の会話の見本(飾り) */
+function Showcase() {
+  return (
+    <div aria-hidden className="relative hidden h-[30rem] w-80 shrink-0 lg:block">
+      {/* 後ろの投稿 */}
+      <div className="absolute top-6 left-0 w-60 -rotate-6 overflow-hidden rounded-3xl border bg-card shadow-xl">
+        <div className="aspect-[4/5] bg-linear-to-br from-amber-200 via-rose-300 to-violet-400" />
+      </div>
+      {/* いいねの数 */}
+      <div className="absolute top-8 right-2 z-10 flex items-center gap-1.5 rounded-full bg-card px-3 py-1.5 text-xs font-semibold shadow-lg">
+        <HeartIcon className="size-4 fill-(--like) text-(--like)" />
+        128
+      </div>
+      {/* 手前の投稿 */}
+      <div className="absolute top-16 right-0 w-60 rotate-3 overflow-hidden rounded-3xl border bg-card shadow-2xl">
+        <div className="flex items-center gap-2 px-3 py-2.5">
+          <span className="bg-brand size-7 rounded-full p-[2px]">
+            <span className="block size-full rounded-full border-2 border-card bg-linear-to-br from-sky-200 to-indigo-300" />
+          </span>
+          <span className="h-2 w-16 rounded-full bg-muted" />
+        </div>
+        <div className="aspect-square bg-linear-to-br from-sky-200 via-indigo-200 to-fuchsia-300" />
+        <div className="space-y-1.5 p-3">
+          <span className="block h-2 w-3/4 rounded-full bg-muted" />
+          <span className="block h-2 w-1/2 rounded-full bg-muted" />
+        </div>
+      </div>
+      {/* AI の吹き出し */}
+      <div className="absolute bottom-6 -left-4 flex max-w-64 items-end gap-2">
+        <span className="bg-brand flex size-8 shrink-0 items-center justify-center rounded-full text-white shadow-lg">
+          <SparklesIcon className="size-4" />
+        </span>
+        <p className="rounded-3xl rounded-bl-md border bg-card px-4 py-2.5 text-sm shadow-xl">
+          その写真、もう少し寄ったほうが映えるよ
+        </p>
+      </div>
+    </div>
   );
 }
 

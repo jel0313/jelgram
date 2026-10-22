@@ -9,6 +9,9 @@ import type { ChatMessage, Post } from "@/lib/api/types";
 
 const SESSION_KEY = "jelgram-chat-session";
 
+/** PC の右の列のチャットの入力欄(openChat でフォーカスする) */
+export const CHAT_INPUT_ID = "chat-input";
+
 type ChatState = {
   messages: ChatMessage[];
   /** 履歴を読み込み中か */
@@ -32,6 +35,8 @@ type ChatState = {
   sessionId: string;
   /** 過去の会話に切り替える(5次) */
   switchSession: (sessionId: string) => void;
+  /** チャットを開く(PC は右の列の入力欄にフォーカス、スマホは下から出す) */
+  openChat: () => void;
   /** 投稿についてチャットで聞く */
   askAbout: (post: Post) => void;
   clearContext: () => void;
@@ -124,12 +129,23 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       .finally(() => setLoadingHistory(false));
   }, []);
 
-  const askAbout = useCallback((post: Post) => {
-    setContextPost(post);
-    setPostSnippets((prev) => ({ ...prev, [post.id]: post.content }));
+  const openChat = useCallback(() => {
     // PC(lg 以上)では右の列にチャットが常にあるので、スマホ用のパネルは開かない
-    if (!window.matchMedia("(min-width: 1024px)").matches) setMobileOpen(true);
+    if (window.matchMedia("(min-width: 1024px)").matches) {
+      document.getElementById(CHAT_INPUT_ID)?.focus({ preventScroll: true });
+    } else {
+      setMobileOpen(true);
+    }
   }, []);
+
+  const askAbout = useCallback(
+    (post: Post) => {
+      setContextPost(post);
+      setPostSnippets((prev) => ({ ...prev, [post.id]: post.content }));
+      openChat();
+    },
+    [openChat],
+  );
 
   const clearContext = useCallback(() => setContextPost(null), []);
 
@@ -148,6 +164,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         newSession,
         sessionId,
         switchSession,
+        openChat,
         askAbout,
         clearContext,
       }}

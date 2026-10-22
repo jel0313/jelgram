@@ -71,30 +71,36 @@ export default function ProfileSettingsPage() {
         <PhaseBadge phase="4次" />
       </PageHeader>
       <form
-        className="space-y-6 px-4 py-6"
+        className="mx-4 my-4 space-y-6 rounded-3xl border border-border/70 bg-card p-5 shadow-[0_2px_16px_-8px_rgb(0_0_0/0.08)] md:mx-0 md:p-6"
         onSubmit={(e) => {
           e.preventDefault();
           void save();
         }}
       >
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 rounded-2xl bg-muted/70 p-4">
           <button
             type="button"
             onClick={() => fileInput.current?.click()}
-            className="group relative rounded-full"
+            className="group relative shrink-0 rounded-full"
             aria-label="アイコンを変更"
           >
-            <UserAvatar name={displayName || "?"} src={avatarPreview} className="size-20 text-2xl" />
+            <UserAvatar name={displayName || "?"} src={avatarPreview} ring className="size-16 text-xl" />
             <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 text-white opacity-0 transition-opacity group-hover:opacity-100">
-              <CameraIcon className="size-6" />
+              <CameraIcon className="size-5" />
             </span>
           </button>
-          <div className="space-y-1 text-sm">
-            <Button type="button" variant="outline" size="sm" onClick={() => fileInput.current?.click()}>
-              アイコンを変更
-            </Button>
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-semibold">{displayName || "表示名"}</p>
             <p className="text-xs text-muted-foreground">JPEG・PNG・WebP・GIF(5MB まで)</p>
           </div>
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 rounded-lg px-3 font-semibold"
+            onClick={() => fileInput.current?.click()}
+          >
+            写真を変更
+          </Button>
           <input
             ref={fileInput}
             type="file"
@@ -105,12 +111,15 @@ export default function ProfileSettingsPage() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="display-name">表示名</Label>
+          <Label htmlFor="display-name" className="font-semibold">
+            表示名
+          </Label>
           <Input
             id="display-name"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             aria-invalid={nameError !== null}
+            className="h-11 rounded-xl px-3.5"
           />
           <div className="flex justify-between text-xs">
             <span className="text-destructive">{nameError}</span>
@@ -121,10 +130,14 @@ export default function ProfileSettingsPage() {
         </div>
 
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => router.back()}>
+          <Button type="button" variant="ghost" className="h-10 rounded-full px-5" onClick={() => router.back()}>
             キャンセル
           </Button>
-          <Button type="submit" disabled={!changed || nameError !== null || saving}>
+          <Button
+            type="submit"
+            disabled={!changed || nameError !== null || saving}
+            className="bg-brand h-10 rounded-full px-6 font-semibold text-white disabled:bg-none disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+          >
             {saving && <Loader2Icon className="animate-spin" />}
             保存する
           </Button>

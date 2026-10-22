@@ -15,14 +15,17 @@ type Props = {
   onChange: (postId: number, likeCount: number, likedByMe: boolean) => void;
 };
 
-/** いいねボタン。いいね済みならもう一度押すと取り消し */
+/** いいねボタン(ハートだけ。数は投稿の下に出す)。いいね済みならもう一度押すと取り消し */
 export function LikeButton({ post, onChange }: Props) {
   const [pending, setPending] = useState(false);
+  // いいねした瞬間だけ、ハートをふくらませる
+  const [popped, setPopped] = useState(false);
 
   const toggle = async () => {
     setPending(true);
     try {
       const result = post.liked_by_me ? await unlikePost(post.id) : await likePost(post.id);
+      setPopped(result.liked_by_me);
       onChange(result.post_id, result.like_count, result.liked_by_me);
     } catch (error) {
       toast.error(errorMessage(error));
@@ -38,18 +41,17 @@ export function LikeButton({ post, onChange }: Props) {
       disabled={pending}
       aria-pressed={post.liked_by_me}
       aria-label={post.liked_by_me ? "いいねを取り消す" : "いいねする"}
-      className={cn(
-        "group flex items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors disabled:opacity-60",
-        post.liked_by_me ? "text-pink-600" : "text-muted-foreground hover:text-pink-600",
-      )}
+      className="group -m-1.5 rounded-full p-1.5 transition-opacity disabled:opacity-60"
     >
       <HeartIcon
         className={cn(
-          "size-4.5 transition-transform group-active:scale-90",
-          post.liked_by_me && "fill-current",
+          "size-6.5 transition-[transform,color] group-hover:opacity-60 group-active:scale-90",
+          post.liked_by_me ? "fill-(--like) text-(--like) group-hover:opacity-100" : "text-foreground",
+          popped && "animate-like-pop",
         )}
+        strokeWidth={1.8}
+        onAnimationEnd={() => setPopped(false)}
       />
-      <span className="tabular-nums">{post.like_count}</span>
     </button>
   );
 }
