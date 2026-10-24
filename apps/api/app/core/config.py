@@ -69,6 +69,7 @@ class Settings(BaseSettings):
     rate_limit_follows_per_minute: int = Field(default=30, ge=1)
     rate_limit_uploads_per_minute: int = Field(default=20, ge=1)
     rate_limit_reports_per_minute: int = Field(default=10, ge=1)
+    rate_limit_stories_per_minute: int = Field(default=5, ge=1)
 
     # リクエストサイズの上限(8-7)
     max_request_body_bytes: int = Field(default=1_048_576, ge=1024)  # 1MB

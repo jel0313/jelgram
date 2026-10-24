@@ -88,6 +88,16 @@ class TestSettings:
         with pytest.raises(ValidationError, match="supabase_url"):
             Settings(**{**BASE_SETTINGS, "supabase_url": ""}, _env_file=None)  # type: ignore[arg-type]
 
+    def test_stories_rate_limit_default(self) -> None:
+        """ストーリーの上限は、指定しなければ 5(0-2)。"""
+        settings = Settings(**BASE_SETTINGS, _env_file=None)  # type: ignore[arg-type]
+        assert settings.rate_limit_stories_per_minute == 5
+
+    def test_stories_rate_limit_rejects_zero(self) -> None:
+        """ストーリーの上限に 0 を指定すると、起動時にエラー(0-2)。"""
+        with pytest.raises(ValidationError, match="rate_limit_stories_per_minute"):
+            Settings(**BASE_SETTINGS, rate_limit_stories_per_minute=0, _env_file=None)  # type: ignore[arg-type]
+
 
 # ---------------------------------------------------------------- ログのマスク(15-5)
 
