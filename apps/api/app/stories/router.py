@@ -5,10 +5,10 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel
 
-from app.auth.dependencies import CurrentUserDep
+from app.auth.dependencies import CurrentUserDep, rate_limit
 from app.core.config import SettingsDep
 from app.core.db import DbSessionDep
 from app.core.schemas import COMMON_ERROR_RESPONSES
@@ -23,7 +23,12 @@ class StoryCreate(BaseModel):
     media_id: UUID
 
 
-@router.post("", response_model=StoryResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=StoryResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit("stories", "rate_limit_stories_per_minute"))],
+)
 def create_story(
     body: StoryCreate,
     user: CurrentUserDep,
