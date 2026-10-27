@@ -60,6 +60,14 @@ def list_comments(
     )
 
 
+def get_comment(session: Session, comment_id: int, viewer_id: UUID) -> CommentResponse:
+    """コメントを1件返す(3-2)。"""
+    row = repository.get_comment(session, comment_id)
+    if row is None or repository.get_visible_post(session, row["post_id"], viewer_id) is None:
+        raise CommentNotFoundError
+    return _to_response(row, viewer_id)
+
+
 def create_comment(
     session: Session, post_id: int, user_id: UUID, body: CommentCreate
 ) -> CommentResponse:

@@ -10,10 +10,13 @@ from uuid import UUID, uuid4
 
 import fakeredis
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError
 
 from app.admin import repository as admin_repository
 from app.admin import service as admin_service
+from app.auth.dependencies import CurrentUser, get_current_user
 from app.chat import repository as chat_repository
 from app.chat import service as chat_service
 from app.chat.schemas import ChatRequest
@@ -27,6 +30,7 @@ from app.comments.exceptions import (
 from app.comments.schemas import CommentCreate, CommentUpdate
 from app.core import idempotency
 from app.core.config import get_settings
+from app.core.db import get_db
 from app.media import repository as media_repository
 from app.media import service as media_service
 from app.media.exceptions import MediaNotFoundError, UnsupportedImageError
@@ -313,6 +317,31 @@ class TestCommentsService:
             with pytest.raises(NotCommentOwnerError):
                 comments_service.delete_comment(FakeSession(), 10, user)  # type: ignore[arg-type]
         assert ({"audit": "comment.delete_by_post_owner"} in comments.calls) is audited
+
+    def test_get_comment(self, comments: SimpleNamespace) -> None:
+        """見てよいコメントなら、その1件を返す(3-2)。"""
+        response = comments_service.get_comment(FakeSession(), 10, ME)  # type: ignore[arg-type]
+        assert response.id == 10
+        assert response.content == "c"
+        assert response.can_delete is True
+
+    def test_get_comment_not_found(self, comments: SimpleNamespace) -> None:
+        """コメントが無ければ CommentNotFoundError(3-2)。"""
+        comments.comment = None
+        with pytest.raises(CommentNotFoundError):
+            comments_service.get_comment(FakeSession(), 10, ME)  # type: ignore[arg-type]
+
+    def test_get_comment_route(
+        self, app: FastAPI, monkeypatch: pytest.MonkeyPatch, comments: SimpleNamespace
+    ) -> None:
+        """GET /api/v1/comments/{comment_id} が 200 で返す(3-2。完成済みのテスト)。"""
+        app.dependency_overrides[get_current_user] = lambda: CurrentUser(id=ME)
+        app.dependency_overrides[get_db] = lambda: FakeSession()
+        expected = comments_service._to_response(comment_row(), ME)
+        monkeypatch.setattr(comments_service, "get_comment", lambda s, cid, viewer: expected)
+        res = TestClient(app).get("/api/v1/comments/10")
+        assert res.status_code == 200
+        assert res.json()["id"] == 10
 
     def test_missing_comment(self, comments: SimpleNamespace) -> None:
         comments.comment = None

@@ -46,6 +46,12 @@ def create_comment(
     return service.create_comment(session, post_id, user.id, body)
 
 
+@router.get("/comments/{comment_id}", response_model=CommentResponse, responses=ERRORS)
+def get_comment(comment_id: int, user: CurrentUserDep, session: DbSessionDep) -> CommentResponse:
+    """コメントを1件返す(3-2)。"""
+    return service.get_comment(session, comment_id, user.id)
+
+
 @router.patch("/comments/{comment_id}", response_model=CommentResponse, responses=ERRORS)
 def update_comment(
     comment_id: int, body: CommentUpdate, user: CurrentUserDep, session: DbSessionDep
