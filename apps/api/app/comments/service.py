@@ -63,28 +63,33 @@ def list_comments(
 def create_comment(
     session: Session, post_id: int, user_id: UUID, body: CommentCreate
 ) -> CommentResponse:
-    post = repository.get_visible_post(session, post_id, user_id)
-    if post is None:
+    """コメントを作る(3-1)。"""
+    posts = repository.get_visible_post(session, post_id, user_id)
+    # 投稿が見つからない（見る権限がない）ときは PostNotFoundError
+    if posts is None:
         raise PostNotFoundError
-    if post["comments_disabled"] and post["user_id"] != user_id:
+    # コメント禁止の投稿には、投稿者本人しか書けない
+    if posts["comments_disabled"] and posts["user_id"] != user_id:
         raise CommentsDisabledError
+    # 本文に禁止語があるときは ContentNotAllowedError
     if find_blocked_words(body.content):
         raise ContentNotAllowedError
-
+    # コメントを保存し、投稿者に通知を作る（種類は "comment"）
     comment_id = repository.insert_comment(session, post_id, user_id, body.content)
     notifications.notify(
         session,
-        recipient_id=post["user_id"],
+        recipient_id=posts["user_id"],
         actor_id=user_id,
         type_="comment",
         post_id=post_id,
         comment_id=comment_id,
     )
-    row = repository.get_comment(session, comment_id)
-    if row is None:
+    # 保存したコメントを取り直して commit し、レスポンスの形にして返す
+    comment_row = repository.get_comment(session, comment_id)
+    if comment_row is None:
         raise CommentNotFoundError
     session.commit()
-    return _to_response(row, user_id)
+    return _to_response(comment_row, user_id)
 
 
 def _get_comment_visible(session: Session, comment_id: int, viewer_id: UUID) -> Mapping[Any, Any]:
