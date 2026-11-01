@@ -2,7 +2,7 @@
 # API・ワーカー共通のイメージ(17-1)。マルチステージ:ビルド用と実行用を分け、実行用を小さくする。
 
 # ---------- ① ビルド:依存パッケージを .venv に入れる ----------
-FROM python:3.13-slim AS builder
+FROM python:3.15-slim AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /usr/local/bin/uv
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 WORKDIR /app
@@ -12,7 +12,7 @@ RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-dev --no-ins
 COPY app ./app
 
 # ---------- ② 実行:uv もビルド道具も入れない ----------
-FROM python:3.13-slim AS runtime
+FROM python:3.15-slim AS runtime
 # root で動かさない(乗っ取られたときの被害を小さくする)
 RUN useradd --create-home --uid 10001 appuser
 WORKDIR /app
