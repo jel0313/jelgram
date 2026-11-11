@@ -9,23 +9,23 @@ dependencies = [
     "pillow>=13.0.0",
     "prometheus-client>=0.26.0",
     "psycopg[binary]>=3.3.6",
-    "pydantic-settings>=2.16.1",
+    "pydantic-settings>=2.16.2",
     "pyjwt[crypto]>=2.15.1",
     "pywebpush>=2.5.0",
     "redis>=6.4.0",
     "sentry-sdk[fastapi]>=2.72.0",
-    "sqlalchemy>=2.1.6",
+    "sqlalchemy>=2.1.8",
 ]
 
 [dependency-groups]
 dev = [
     "fakeredis>=2.40.0",
-    "locust>=2.46.7",
-    "mypy>=2.4.0",
+    "locust>=2.47.0",
+    "mypy>=2.4.1",
     "pre-commit>=4.7.0",
-    "pytest>=9.1.1",
+    "pytest>=9.2.0",
     "pytest-cov>=7.1.0",
-    "ruff>=0.17.1",
+    "ruff>=0.17.4",
 ]
 
 [tool.pytest.ini_options]
